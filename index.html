@@ -8,9 +8,19 @@
 </head>
 <body>
   <div class="container">
-    <button id="flash-button">🔦 Encender Flash</button>
     <h1>Lector de Códigos de Barra</h1>
     <video id="scanner-video" autoplay muted playsinline></video>
+
+    <!-- Controles de cámara -->
+    <div class="control-buttons">
+      <button id="flash-button">🔦 Encender Flash</button>
+      <button id="zoom-out" class="zoom-button">🔍- Zoom Out</button>
+      <button id="zoom-in" class="zoom-button">🔍+ Zoom In</button>
+    </div>
+
+    <!-- Indicador de zoom -->
+    <div id="zoom-indicator" class="zoom-indicator">Zoom: 1.0x</div>
+
     <div class="result-container">
       <p>Código detectado: <span id="barcode-result">Esperando detección...</span></p>
     </div>

@@ -1,6 +1,9 @@
 const videoElement = document.getElementById('scanner-video');
 const resultElement = document.getElementById('barcode-result');
 const flashButton = document.getElementById('flash-button');
+const zoomInButton = document.getElementById('zoom-in');
+const zoomOutButton = document.getElementById('zoom-out');
+const zoomIndicator = document.getElementById('zoom-indicator');
 // Paso 1: Comprobar la compatibilidad y crear una instancia del detector
 if ('BarcodeDetector' in window) {
   const barcodeDetector = new BarcodeDetector({
@@ -21,20 +24,25 @@ if ('BarcodeDetector' in window) {
     ]
   });
 
-  // Variable para controlar el estado del flash
+  // Variables para controlar el estado del flash y zoom
   let isFlashOn = false;
+  let currentZoom = 1.0;
+  let minZoom = 1.0;
+  let maxZoom = 3.0;
+  let currentVideoTrack = null;
 
   // Paso 2: Obtener acceso a la cámara
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(stream => {
       videoElement.srcObject = stream;
 
-      // Verificar si el flash está disponible
-      const videoTrack = stream.getVideoTracks()[0];
-      const capabilities = videoTrack.getCapabilities();
+      // Verificar capacidades de la cámara
+      currentVideoTrack = stream.getVideoTracks()[0];
+      const capabilities = currentVideoTrack.getCapabilities();
 
       console.log('Capacidades de la cámara:', capabilities); // Debug
 
+      // Configurar flash
       if (capabilities.torch || 'torch' in capabilities) {
         flashButton.style.display = 'block'; // Mostrar botón de flash
         flashButton.addEventListener('click', toggleFlash);
@@ -42,6 +50,25 @@ if ('BarcodeDetector' in window) {
       } else {
         console.log('Flash no disponible en este dispositivo'); // Debug
         flashButton.style.display = 'none'; // Ocultar botón si no hay flash
+      }
+
+      // Configurar zoom
+      if (capabilities.zoom) {
+        minZoom = capabilities.zoom.min || 1.0;
+        maxZoom = capabilities.zoom.max || 3.0;
+        currentZoom = capabilities.zoom.min || 1.0;
+
+        zoomInButton.style.display = 'block';
+        zoomOutButton.style.display = 'block';
+        zoomIndicator.style.display = 'block';
+
+        zoomInButton.addEventListener('click', zoomIn);
+        zoomOutButton.addEventListener('click', zoomOut);
+
+        updateZoomIndicator();
+        console.log(`Zoom disponible: ${minZoom}x - ${maxZoom}x`); // Debug
+      } else {
+        console.log('Zoom no disponible en este dispositivo'); // Debug
       }
 
       videoElement.addEventListener('loadeddata', () => {
@@ -106,6 +133,52 @@ if ('BarcodeDetector' in window) {
     }
   }
 
+  // Funciones para controlar el zoom
+  async function zoomIn() {
+    try {
+      const newZoom = Math.min(currentZoom + 0.2, maxZoom);
+      await applyZoom(newZoom);
+    } catch (err) {
+      console.error('Error al hacer zoom in:', err);
+    }
+  }
+
+  async function zoomOut() {
+    try {
+      const newZoom = Math.max(currentZoom - 0.2, minZoom);
+      await applyZoom(newZoom);
+    } catch (err) {
+      console.error('Error al hacer zoom out:', err);
+    }
+  }
+
+  async function applyZoom(zoomLevel) {
+    try {
+      await currentVideoTrack.applyConstraints({
+        advanced: [{
+          zoom: zoomLevel
+        }]
+      });
+      currentZoom = zoomLevel;
+      updateZoomIndicator();
+      console.log(`Zoom aplicado: ${zoomLevel.toFixed(1)}x`); // Debug
+    } catch (err) {
+      console.error('Error al aplicar zoom:', err);
+    }
+  }
+
+  function updateZoomIndicator() {
+    zoomIndicator.textContent = `Zoom: ${currentZoom.toFixed(1)}x`;
+
+    // Actualizar estado de los botones
+    zoomOutButton.disabled = currentZoom <= minZoom;
+    zoomInButton.disabled = currentZoom >= maxZoom;
+
+    // Cambiar opacidad para indicar si están disponibles
+    zoomOutButton.style.opacity = currentZoom <= minZoom ? '0.5' : '1';
+    zoomInButton.style.opacity = currentZoom >= maxZoom ? '0.5' : '1';
+  }
+
   // Función para el bucle de detección
   function startDetection() {
     // Ejecuta la detección cada X milisegundos (por ejemplo, 100ms)
@@ -124,7 +197,7 @@ if ('BarcodeDetector' in window) {
               displayValue = detectedBarcode.rawValue.substring(0, 9);
             }
 
-            resultElement.textContent = `${displayValue} (${detectedBarcode.format})`;
+            resultElement.textContent = `${displayValue}`;
 
             // Opcional: detener la detección después del primer éxito
             // clearInterval(intervalId);
