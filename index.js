@@ -33,8 +33,16 @@ if ('BarcodeDetector' in window) {
       const videoTrack = stream.getVideoTracks()[0];
       const capabilities = videoTrack.getCapabilities();
 
-      if ('torch' in capabilities) {
+      console.log('Capacidades de la cámara:', capabilities); // Debug
+
+      if (capabilities.torch || 'torch' in capabilities) {
         flashButton.style.display = 'block'; // Mostrar botón de flash
+        flashButton.addEventListener('click', toggleFlash);
+        console.log('Flash disponible'); // Debug
+      } else {
+        console.log('Flash no disponible en este dispositivo'); // Debug
+        // Mostrar el botón de todos modos para probar
+        flashButton.style.display = 'block';
         flashButton.addEventListener('click', toggleFlash);
       }
 
@@ -52,16 +60,51 @@ if ('BarcodeDetector' in window) {
   async function toggleFlash() {
     try {
       const videoTrack = videoElement.srcObject.getVideoTracks()[0];
-      await videoTrack.applyConstraints({
-        advanced: [{
+      const capabilities = videoTrack.getCapabilities();
+
+      console.log('Intentando alternar flash. Estado actual:', isFlashOn); // Debug
+
+      // Método 1: Usando constraints básicos
+      try {
+        await videoTrack.applyConstraints({
           torch: !isFlashOn
-        }]
-      });
+        });
+        console.log('Método 1 exitoso'); // Debug
+      } catch (error1) {
+        console.log('Método 1 falló, probando método 2:', error1); // Debug
+
+        // Método 2: Usando constraints avanzados
+        try {
+          await videoTrack.applyConstraints({
+            advanced: [{
+              torch: !isFlashOn
+            }]
+          });
+          console.log('Método 2 exitoso'); // Debug
+        } catch (error2) {
+          console.log('Método 2 falló, probando método 3:', error2); // Debug
+
+          // Método 3: Recrear el stream con torch
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment',
+              torch: !isFlashOn
+            }
+          });
+
+          videoElement.srcObject = newStream;
+          console.log('Método 3 exitoso'); // Debug
+        }
+      }
+
       isFlashOn = !isFlashOn;
       flashButton.textContent = isFlashOn ? '🔦 Apagar Flash' : '🔦 Encender Flash';
       flashButton.style.backgroundColor = isFlashOn ? '#ff6b6b' : '#4ecdc4';
+
     } catch (err) {
       console.error('Error al alternar flash:', err);
+      // Mostrar el error al usuario
+      resultElement.textContent = `Error con el flash: ${err.message}`;
     }
   }
 
