@@ -41,9 +41,7 @@ if ('BarcodeDetector' in window) {
         console.log('Flash disponible'); // Debug
       } else {
         console.log('Flash no disponible en este dispositivo'); // Debug
-        // Mostrar el botón de todos modos para probar
-        flashButton.style.display = 'block';
-        flashButton.addEventListener('click', toggleFlash);
+        flashButton.style.display = 'none'; // Ocultar botón si no hay flash
       }
 
       videoElement.addEventListener('loadeddata', () => {
