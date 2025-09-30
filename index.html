@@ -4,40 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lector de códigos de barra</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background-color: #f0f0f0;
-    }
-    #scanner-video {
-      width: 100%;
-      max-width: 500px;
-      height: auto;
-      border: 2px solid #333;
-      border-radius: 8px;
-    }
-    #barcode-result {
-      font-weight: bold;
-      color: #007bff;
-    }
-    .container {
-      text-align: center;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-    .result-container {
-      margin-top: 20px;
-      padding: 15px;
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-  </style>
+  <link rel="stylesheet" href="index.css">
 </head>
 <body>
   <div class="container">
+    <button id="flash-button">🔦 Encender Flash</button>
     <h1>Lector de Códigos de Barra</h1>
     <video id="scanner-video" autoplay muted playsinline></video>
     <div class="result-container">

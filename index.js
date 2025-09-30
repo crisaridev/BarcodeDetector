@@ -1,5 +1,6 @@
 const videoElement = document.getElementById('scanner-video');
 const resultElement = document.getElementById('barcode-result');
+const flashButton = document.getElementById('flash-button');
 // Paso 1: Comprobar la compatibilidad y crear una instancia del detector
 if ('BarcodeDetector' in window) {
   const barcodeDetector = new BarcodeDetector({
@@ -20,10 +21,23 @@ if ('BarcodeDetector' in window) {
     ]
   });
 
+  // Variable para controlar el estado del flash
+  let isFlashOn = false;
+
   // Paso 2: Obtener acceso a la cámara
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(stream => {
       videoElement.srcObject = stream;
+
+      // Verificar si el flash está disponible
+      const videoTrack = stream.getVideoTracks()[0];
+      const capabilities = videoTrack.getCapabilities();
+
+      if ('torch' in capabilities) {
+        flashButton.style.display = 'block'; // Mostrar botón de flash
+        flashButton.addEventListener('click', toggleFlash);
+      }
+
       videoElement.addEventListener('loadeddata', () => {
         // El video está listo para reproducirse, podemos empezar a detectar
         startDetection();
@@ -33,6 +47,23 @@ if ('BarcodeDetector' in window) {
       console.error('Error al acceder a la cámara:', err);
       resultElement.textContent = 'Error al acceder a la cámara. Asegúrate de estar en un contexto seguro (HTTPS).';
     });
+
+  // Función para alternar el flash
+  async function toggleFlash() {
+    try {
+      const videoTrack = videoElement.srcObject.getVideoTracks()[0];
+      await videoTrack.applyConstraints({
+        advanced: [{
+          torch: !isFlashOn
+        }]
+      });
+      isFlashOn = !isFlashOn;
+      flashButton.textContent = isFlashOn ? '🔦 Apagar Flash' : '🔦 Encender Flash';
+      flashButton.style.backgroundColor = isFlashOn ? '#ff6b6b' : '#4ecdc4';
+    } catch (err) {
+      console.error('Error al alternar flash:', err);
+    }
+  }
 
   // Función para el bucle de detección
   function startDetection() {
