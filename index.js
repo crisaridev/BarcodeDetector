@@ -45,7 +45,14 @@ if ('BarcodeDetector' in window) {
           if (barcodes.length > 0) {
             // Se encontró un código de barras
             const detectedBarcode = barcodes[0];
-            resultElement.textContent = `${detectedBarcode.rawValue} (${detectedBarcode.format})`;
+            let displayValue = detectedBarcode.rawValue;
+
+            // Para códigos EAN-13, mostrar solo los primeros 9 dígitos
+            if (detectedBarcode.format === 'ean_13' && detectedBarcode.rawValue.length >= 9) {
+              displayValue = detectedBarcode.rawValue.substring(0, 9);
+            }
+
+            resultElement.textContent = `${displayValue} (${detectedBarcode.format})`;
 
             // Opcional: detener la detección después del primer éxito
             // clearInterval(intervalId);
