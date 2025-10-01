@@ -5,22 +5,55 @@ const zoomInButton = document.getElementById('zoom-in');
 const zoomOutButton = document.getElementById('zoom-out');
 const zoomIndicator = document.getElementById('zoom-indicator');
 // Paso 1: Comprobar la compatibilidad y crear una instancia del detector
+console.log('Verificando compatibilidad de BarcodeDetector...');
+console.log('Navigator userAgent:', navigator.userAgent);
+console.log('BarcodeDetector disponible:', 'BarcodeDetector' in window);
+
+// Actualizar información de compatibilidad en el DOM
+const browserInfo = document.getElementById('browser-info');
+const apiInfo = document.getElementById('api-info');
+
+// Detectar navegador y plataforma
+const userAgent = navigator.userAgent;
+const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+const isAndroid = /Android/.test(userAgent);
+const isChrome = /Chrome/.test(userAgent) && !/Edge/.test(userAgent);
+const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+
+let browserName = 'Desconocido';
+if (isChrome) browserName = 'Chrome';
+else if (isSafari) browserName = 'Safari';
+else if (/Firefox/.test(userAgent)) browserName = 'Firefox';
+else if (/Edge/.test(userAgent)) browserName = 'Edge';
+
+let platform = 'Desconocido';
+if (isIOS) platform = 'iOS';
+else if (isAndroid) platform = 'Android';
+else if (/Mac/.test(userAgent)) platform = 'macOS';
+else if (/Windows/.test(userAgent)) platform = 'Windows';
+
+browserInfo.textContent = `${browserName} en ${platform}`;
+
+// Verificar compatibilidad de BarcodeDetector
+const hasBarcodeDetector = 'BarcodeDetector' in window;
+if (hasBarcodeDetector) {
+  apiInfo.innerHTML = '✅ <strong>BarcodeDetector nativo</strong> - Rendimiento óptimo';
+  apiInfo.style.color = '#4CAF50';
+} else {
+  apiInfo.innerHTML = '⚠️ <strong>Fallback QuaggaJS</strong> - Compatibilidad extendida';
+  apiInfo.style.color = '#FF9800';
+
+  // Explicar por qué no está disponible
+  if (isIOS) {
+    apiInfo.innerHTML += '<br><small>Nota: iOS no soporta BarcodeDetector nativamente</small>';
+  }
+}
+
 if ('BarcodeDetector' in window) {
+  console.log('Usando BarcodeDetector nativo');
   const barcodeDetector = new BarcodeDetector({
     formats: [
-      'qr_code',        // Códigos QR
       'ean_13',         // Códigos de barras de productos (13 dígitos)
-      'ean_8',          // Códigos de barras de productos (8 dígitos)
-      'code_128',       // Códigos Code 128
-      'code_39',        // Códigos Code 39
-      'code_93',        // Códigos Code 93
-      'codabar',        // Códigos Codabar
-      'itf',            // Interleaved 2 of 5
-      'upc_a',          // UPC-A (códigos de productos en EE.UU.)
-      'upc_e',          // UPC-E (versión compacta de UPC-A)
-      'pdf417',         // PDF417 (códigos 2D)
-      'aztec',          // Códigos Aztec
-      'data_matrix'     // Data Matrix
     ]
   });
 
@@ -211,5 +244,190 @@ if ('BarcodeDetector' in window) {
   }
 
 } else {
-  resultElement.textContent = 'La API de Barcode Detection no es compatible con este navegador.';
+  console.log('BarcodeDetector no disponible, usando QuaggaJS como fallback');
+  resultElement.textContent = 'Inicializando scanner compatible...';
+
+  // Mostrar mensaje específico para iOS
+  if (isIOS) {
+    console.log('Detectado dispositivo iOS - usando QuaggaJS optimizado');
+    resultElement.textContent = 'Configurando scanner para iOS...';
+  }
+
+  // Cargar QuaggaJS como fallback
+  loadQuaggaJS();
+}
+
+// Función de fallback para dispositivos que no soportan BarcodeDetector
+function loadQuaggaJS() {
+  console.log('Cargando QuaggaJS desde CDN...');
+
+  // Actualizar API info mientras se carga
+  const apiInfo = document.getElementById('api-info');
+  apiInfo.innerHTML = '⏳ Cargando scanner alternativo...';
+  apiInfo.style.color = '#2196F3';
+
+  // Cargar la librería QuaggaJS dinámicamente
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
+  script.onload = () => {
+    console.log('QuaggaJS cargado exitosamente');
+    apiInfo.innerHTML = '✅ <strong>QuaggaJS cargado</strong> - Scanner alternativo activo';
+    apiInfo.style.color = '#4CAF50';
+    initQuaggaScanner();
+  };
+  script.onerror = () => {
+    const errorMsg = 'Error: No se pudo cargar el scanner alternativo. Verifique su conexión a internet.';
+    resultElement.textContent = errorMsg;
+    apiInfo.innerHTML = '❌ <strong>Error de carga</strong> - Scanner no disponible';
+    apiInfo.style.color = '#F44336';
+    console.error('Error cargando QuaggaJS desde CDN');
+  };
+  document.head.appendChild(script);
+}
+
+function initQuaggaScanner() {
+  console.log('Inicializando QuaggaJS scanner');
+  resultElement.textContent = 'Configurando cámara...';
+
+  // Configuración optimizada para diferentes dispositivos
+  const videoConstraints = {
+    facingMode: 'environment',
+    width: { ideal: 640, max: 1280 },
+    height: { ideal: 480, max: 720 }
+  };
+
+  // Optimizaciones específicas para iOS
+  const userAgent = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+
+  if (isIOS) {
+    console.log('Aplicando optimizaciones para iOS');
+    // En iOS, usar resoluciones más estables
+    videoConstraints.width = { ideal: 640 };
+    videoConstraints.height = { ideal: 480 };
+  }
+
+  // Inicializar cámara para QuaggaJS
+  navigator.mediaDevices.getUserMedia({ video: videoConstraints })
+    .then(stream => {
+      videoElement.srcObject = stream;
+      console.log('Stream de cámara establecido para QuaggaJS');
+
+      // Configurar controles básicos (sin zoom para QuaggaJS)
+      flashButton.style.display = 'none'; // QuaggaJS no soporta flash nativo
+      zoomInButton.style.display = 'none';
+      zoomOutButton.style.display = 'none';
+      zoomIndicator.style.display = 'none';
+
+      console.log('Controles de cámara configurados para QuaggaJS');
+
+      videoElement.addEventListener('loadeddata', () => {
+        console.log('Video cargado, iniciando detección QuaggaJS...');
+        startQuaggaDetection();
+      });
+    })
+    .catch(err => {
+      console.error('Error al acceder a la cámara:', err);
+      resultElement.textContent = 'Error al acceder a la cámara. Asegúrate de dar permisos.';
+    });
+}
+
+function startQuaggaDetection() {
+  console.log('Iniciando detección con QuaggaJS');
+  resultElement.textContent = 'Configurando detector...';
+
+  // Configuración optimizada para diferentes dispositivos
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  const quaggaConfig = {
+    inputStream: {
+      name: "Live",
+      type: "LiveStream",
+      target: videoElement,
+      constraints: {
+        width: 640,
+        height: 480,
+        facingMode: "environment"
+      }
+    },
+    decoder: {
+      readers: [
+        "ean_reader",     // Para EAN-13 y EAN-8
+        "ean_8_reader"    // Específicamente EAN-8
+      ]
+    },
+    locate: true,
+    locator: {
+      patchSize: isIOS ? "large" : "medium",  // Parches más grandes en iOS
+      halfSample: !isIOS  // No usar halfSample en iOS para mejor calidad
+    }
+  };
+
+  // Configuraciones adicionales para iOS
+  if (isIOS) {
+    console.log('Aplicando configuración optimizada para iOS');
+    quaggaConfig.locator.debug = {
+      showCanvas: false,
+      showPatches: false,
+      showFoundPatches: false,
+      showSkeleton: false,
+      showLabels: false,
+      showPatchLabels: false,
+      showRemainingPatchLabels: false,
+      boxFromPatches: {
+        showTransformed: false,
+        showTransformedBox: false,
+        showBB: false
+      }
+    };
+  }
+
+  Quagga.init(quaggaConfig, function(err) {
+    if (err) {
+      console.error('Error inicializando Quagga:', err);
+      resultElement.textContent = 'Error inicializando el scanner. Intente recargar la página.';
+
+      // Actualizar API info con el error
+      const apiInfo = document.getElementById('api-info');
+      apiInfo.innerHTML = '❌ <strong>Error de inicialización</strong>';
+      apiInfo.style.color = '#F44336';
+      return;
+    }
+
+    console.log("QuaggaJS inicializado correctamente");
+    resultElement.textContent = '📱 Apunta la cámara hacia un código de barras';
+
+    // Actualizar API info con éxito
+    const apiInfo = document.getElementById('api-info');
+    apiInfo.innerHTML = '✅ <strong>QuaggaJS activo</strong> - Listo para escanear';
+    apiInfo.style.color = '#4CAF50';
+
+    Quagga.start();
+  });
+
+  // Listener para detección de códigos
+  Quagga.onDetected(function(result) {
+    console.log('Código detectado con QuaggaJS:', result);
+
+    let code = result.codeResult.code;
+    let format = result.codeResult.format;
+
+    // Para códigos EAN-13, mostrar solo los primeros 9 dígitos
+    if (format === 'ean_13' && code.length >= 9) {
+      code = code.substring(0, 9);
+    }
+
+    resultElement.textContent = `${code}`;
+
+    // Opcional: detener después de detectar
+    // Quagga.stop();
+  });
+
+  // Listener para errores
+  Quagga.onProcessed(function(result) {
+    if (result && result.boxes) {
+      // Opcional: Dibujar overlay de detección
+      // console.log('Procesando frame...');
+    }
+  });
 }
