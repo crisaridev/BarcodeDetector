@@ -99,8 +99,13 @@ function initBarcodeScanner() {
       resultElement.textContent = 'Configurando scanner para iOS...';
     }
 
-    // Cargar QuaggaJS como fallback
-    loadQuaggaJS();
+    // Cargar QuaggaJS como fallback, o modo manual para iOS problemáticos
+    if (isIOS) {
+      // Intentar QuaggaJS pero con fallback rápido a modo manual
+      loadQuaggaJSWithFastFallback();
+    } else {
+      loadQuaggaJS();
+    }
   }
 }
 
@@ -302,6 +307,105 @@ function startDetection(barcodeDetector) {
   }, 100);
 }
 
+// Función de fallback rápido específica para iOS
+function loadQuaggaJSWithFastFallback() {
+  console.log('Intentando QuaggaJS para iOS con fallback rápido...');
+
+  // Timeout muy corto para iOS
+  const fastTimeout = setTimeout(() => {
+    console.log('Fallback rápido activado - iniciando modo manual iOS');
+    initManualModeForIOS();
+  }, 3000); // Solo 3 segundos
+
+  // Actualizar API info
+  const apiInfo = document.getElementById('api-info');
+  if (apiInfo) {
+    apiInfo.innerHTML = '⏳ Probando QuaggaJS (fallback rápido)...';
+    apiInfo.style.color = '#2196F3';
+  }
+
+  // Cargar QuaggaJS
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
+  script.onload = () => {
+    clearTimeout(fastTimeout);
+    console.log('QuaggaJS cargado - intentando inicializar');
+    if (apiInfo) {
+      apiInfo.innerHTML = '⏳ QuaggaJS cargado - inicializando...';
+    }
+    initQuaggaScanner();
+  };
+  script.onerror = () => {
+    clearTimeout(fastTimeout);
+    console.log('Error cargando QuaggaJS - activando modo manual');
+    initManualModeForIOS();
+  };
+  document.head.appendChild(script);
+}
+
+// Modo manual para iOS cuando QuaggaJS no funciona
+function initManualModeForIOS() {
+  console.log('Inicializando modo manual para iOS');
+
+  // Configurar cámara básica
+  navigator.mediaDevices.getUserMedia({
+    video: {
+      facingMode: 'environment',
+      width: { ideal: 640 },
+      height: { ideal: 480 }
+    }
+  })
+  .then(stream => {
+    videoElement.srcObject = stream;
+
+    // Verificar flash
+    const videoTrack = stream.getVideoTracks()[0];
+    const capabilities = videoTrack.getCapabilities();
+
+    if (capabilities.torch || 'torch' in capabilities) {
+      flashButton.style.display = 'block';
+      currentVideoTrack = videoTrack;
+      flashButton.addEventListener('click', toggleFlash);
+    } else {
+      flashButton.style.display = 'none';
+    }
+
+    // Ocultar zoom
+    zoomInButton.style.display = 'none';
+    zoomOutButton.style.display = 'none';
+    zoomIndicator.style.display = 'none';
+
+    // Configurar UI para modo manual
+    resultElement.innerHTML = `
+      📱 <strong>Modo Manual iOS:</strong><br>
+      ✅ Cámara activa<br>
+      👆 Toque la pantalla para "simular" detección<br>
+      💡 Use el flash si es necesario
+    `;
+
+    // Agregar interacción
+    let tapCount = 0;
+    videoElement.addEventListener('click', function() {
+      tapCount++;
+      resultElement.innerHTML = `
+        👆 <strong>Tap #${tapCount}:</strong><br>
+        📷 Enfoque bien el código de barras<br>
+        🔍 En un scanner real, aquí aparecería el resultado
+      `;
+    });
+
+    const apiInfo = document.getElementById('api-info');
+    if (apiInfo) {
+      apiInfo.innerHTML = '📱 <strong>Modo Manual iOS</strong> - Cámara funcional';
+      apiInfo.style.color = '#4CAF50';
+    }
+  })
+  .catch(err => {
+    console.error('Error accediendo a cámara en modo manual:', err);
+    resultElement.textContent = 'Error: No se pudo acceder a la cámara';
+  });
+}
+
 // Función de fallback para dispositivos que no soportan BarcodeDetector
 function loadQuaggaJS() {
   console.log('Cargando QuaggaJS desde CDN...');
@@ -413,67 +517,83 @@ function startQuaggaDetection() {
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   console.log('Detectando iOS en startQuaggaDetection:', isIOS);
 
-  const quaggaConfig = {
-    inputStream: {
-      name: "Live",
-      type: "LiveStream",
-      target: videoElement,
-      constraints: {
-        width: 640,
-        height: 480,
-        facingMode: "environment"
-      }
-    },
-    decoder: {
-      readers: [
-        "ean_reader",       // Para EAN-13 y EAN-8 (genérico)
-        "ean_13_reader",    // Específicamente EAN-13
-        "ean_8_reader",     // Específicamente EAN-8
-        "code_128_reader",  // Code 128 (muy común)
-        "code_39_reader",   // Code 39 (alfanumérico)
-        "code_39_vin_reader", // Code 39 para VIN
-        "codabar_reader",   // Codabar
-        "i2of5_reader"      // Interleaved 2 of 5
-      ]
-    },
-    locate: true,
-    locator: {
-      patchSize: isIOS ? "large" : "medium",
-      halfSample: !isIOS
-    }
-  };
+  // Configuración ultra-simple para iOS
+  let quaggaConfig;
 
-  // Configuraciones adicionales para iOS
   if (isIOS) {
-    console.log('Aplicando configuración simplificada para iOS');
-
-    // Configuración más simple para iOS
-    quaggaConfig.locator = {
-      patchSize: "large",
-      halfSample: false
+    console.log('Aplicando configuración ultra-simple para iOS');
+    quaggaConfig = {
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: videoElement
+      },
+      decoder: {
+        readers: ["ean_reader"] // Solo el lector más básico
+      },
+      locate: false // Desactivar localización para simplificar
     };
-
-    // Reducir lectores para iOS (menos carga)
-    quaggaConfig.decoder.readers = [
-      "ean_reader",
-      "ean_13_reader",
-      "code_128_reader"
-    ];
-
-    console.log('Configuración iOS aplicada:', quaggaConfig);
+  } else {
+    // Configuración completa para otros dispositivos
+    quaggaConfig = {
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: videoElement,
+        constraints: {
+          width: 640,
+          height: 480,
+          facingMode: "environment"
+        }
+      },
+      decoder: {
+        readers: [
+          "ean_reader",
+          "ean_13_reader",
+          "ean_8_reader",
+          "code_128_reader",
+          "code_39_reader"
+        ]
+      },
+      locate: true,
+      locator: {
+        patchSize: "medium",
+        halfSample: true
+      }
+    };
   }
 
-  // Agregar timeout para iOS
-  const initTimeout = setTimeout(() => {
-    console.error('Timeout inicializando Quagga en iOS');
-    resultElement.textContent = '⚠️ Timeout de inicialización. Intente recargar la página.';
+  console.log('Configuración QuaggaJS:', quaggaConfig);
 
-    const apiInfo = document.getElementById('api-info');
-    if (apiInfo) {
-      apiInfo.innerHTML = '⚠️ <strong>Timeout de inicialización</strong> - Recargue la página';
-      apiInfo.style.color = '#FF9800';
+  // Agregar timeout más corto para iOS
+  const timeoutDuration = isIOS ? 5000 : 10000; // 5 segundos en iOS, 10 en otros
+  const initTimeout = setTimeout(() => {
+    console.error('Timeout inicializando Quagga');
+
+    if (isIOS) {
+      // Fallback completo para iOS
+      console.log('Activando modo manual para iOS');
+      resultElement.innerHTML = '📷 <strong>Modo Manual iOS:</strong><br>La cámara está activa. Enfoque el código y toque la pantalla.';
+
+      // Agregar listener para tap manual
+      videoElement.addEventListener('click', function() {
+        resultElement.innerHTML = '👆 <strong>Tap detectado!</strong><br>En modo manual - QuaggaJS no funciona en este dispositivo iOS.';
+      });
+
+      const apiInfo = document.getElementById('api-info');
+      if (apiInfo) {
+        apiInfo.innerHTML = '📱 <strong>Modo Manual iOS</strong> - QuaggaJS no compatible';
+        apiInfo.style.color = '#2196F3';
+      }
+    } else {
+      resultElement.textContent = '⚠️ Timeout de inicialización. Intente recargar la página.';
+      const apiInfo = document.getElementById('api-info');
+      if (apiInfo) {
+        apiInfo.innerHTML = '⚠️ <strong>Timeout de inicialización</strong> - Recargue la página';
+        apiInfo.style.color = '#FF9800';
+      }
     }
-  }, 10000); // 10 segundos timeout
+  }, timeoutDuration);
 
   Quagga.init(quaggaConfig, function(err) {
     clearTimeout(initTimeout); // Cancelar timeout si inicializa correctamente
@@ -481,25 +601,33 @@ function startQuaggaDetection() {
     if (err) {
       console.error('Error inicializando Quagga:', err);
 
-      // Mensaje específico para iOS
+      // Mensaje y fallback específico para iOS
       if (isIOS) {
-        resultElement.textContent = '❌ Error de inicialización en iOS. Intente: 1) Recargar página 2) Dar permisos de cámara';
+        console.log('QuaggaJS falló en iOS, activando modo manual');
+        resultElement.innerHTML = `
+          📱 <strong>Modo iOS Manual:</strong><br>
+          • La cámara funciona correctamente<br>
+          • QuaggaJS no es compatible con este iOS<br>
+          • Puede ver los códigos pero no detectarlos automáticamente
+        `;
+
+        // Agregar interacción manual
+        videoElement.addEventListener('click', function() {
+          resultElement.innerHTML = '👆 <strong>¡Pantalla tocada!</strong><br>Modo manual activo - enfoque bien el código de barras';
+        });
+
+        const apiInfo = document.getElementById('api-info');
+        if (apiInfo) {
+          apiInfo.innerHTML = '📱 <strong>Modo Manual iOS</strong> - Cámara funcional';
+          apiInfo.style.color = '#2196F3';
+        }
       } else {
         resultElement.textContent = 'Error inicializando el scanner. Intente recargar la página.';
-      }
-
-      // Actualizar API info con el error
-      const apiInfo = document.getElementById('api-info');
-      if (apiInfo) {
-        apiInfo.innerHTML = '❌ <strong>Error de inicialización</strong>';
-        apiInfo.style.color = '#F44336';
-      }
-
-      // Fallback: mostrar al menos la cámara sin detección automática
-      if (isIOS) {
-        setTimeout(() => {
-          resultElement.innerHTML = '📷 <strong>Modo manual:</strong> La cámara está activa. QuaggaJS tuvo problemas de inicialización.';
-        }, 2000);
+        const apiInfo = document.getElementById('api-info');
+        if (apiInfo) {
+          apiInfo.innerHTML = '❌ <strong>Error de inicialización</strong>';
+          apiInfo.style.color = '#F44336';
+        }
       }
 
       return;
