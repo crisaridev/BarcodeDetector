@@ -11,7 +11,6 @@ body {
     max-width: 500px;
     height: auto;
     border: 2px solid #F5B757;
-    border-radius: 8px;
   }
 
   #barcode-result {
