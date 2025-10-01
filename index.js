@@ -380,7 +380,8 @@ function startQuaggaDetection() {
     },
     decoder: {
       readers: [
-        "ean_reader",     // Para EAN-13 y EAN-8
+        "ean_reader",     // Para EAN-13 y EAN-8 (genérico)
+        "ean_13_reader",  // Específicamente EAN-13
         "ean_8_reader"    // Específicamente EAN-8
       ]
     },
