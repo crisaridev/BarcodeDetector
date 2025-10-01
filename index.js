@@ -5,6 +5,8 @@ let currentZoom = 1.0;
 let minZoom = 1.0;
 let maxZoom = 3.0;
 let currentVideoTrack = null;
+const sonidoAlarma = new Audio('store-scanner-beep-90395.mp3'); // Asegúrate de que la ruta sea correcta
+
 
 // Asegurar que el DOM esté completamente cargado
 document.addEventListener('DOMContentLoaded', function() {
@@ -295,9 +297,10 @@ function startDetection(barcodeDetector) {
             displayValue = displayValue.substring(0, 50) + '...';
           }
 
-          // Mostrar formato y valor
+          // Mostrar formato y valor barcodeDetector nativo
           resultElement.innerHTML = `<strong>${format.toUpperCase()}:</strong> ${displayValue}`;
           console.log(`Código detectado - Formato: ${format}, Valor: ${detectedBarcode.rawValue}`);
+          sonidoAlarma.play();
         }
       }
     } catch (err) {
@@ -652,7 +655,7 @@ function startQuaggaDetection() {
     }
   });
 
-  // Listener para detección de códigos
+  // Listener para detección de códigos Código detectado con QuaggaJS
   Quagga.onDetected(function(result) {
     console.log('Código detectado con QuaggaJS:', result);
 
@@ -667,9 +670,10 @@ function startQuaggaDetection() {
       displayValue = code.substring(0, 9);
     }
 
-    // Mostrar formato y valor
+    // Mostrar formato y valor Código detectado con QuaggaJS
     resultElement.innerHTML = `<strong>${format.toUpperCase()}:</strong> ${displayValue}`;
     console.log(`Código detectado con QuaggaJS - Formato: ${format}, Valor: ${code}`);
+    sonidoAlarma.play();
   });
 
   // Listener para errores
