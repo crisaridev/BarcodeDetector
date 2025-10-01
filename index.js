@@ -107,7 +107,21 @@ function initBarcodeScanner() {
 function initNativeBarcodeDetector() {
   console.log('Usando BarcodeDetector nativo');
   const barcodeDetector = new BarcodeDetector({
-    formats: ['ean_13'] // Códigos de barras de productos (13 dígitos)
+    formats: [
+      'ean_13',         // Códigos de productos (13 dígitos)
+      'ean_8',          // Códigos de productos (8 dígitos)
+      'code_128',       // Código 128 (muy común en logística)
+      'code_39',        // Código 39 (alfanumérico)
+      'code_93',        // Código 93 (mejora del 39)
+      'codabar',        // Codabar (bibliotecas, bancos de sangre)
+      'itf',            // Interleaved 2 of 5 (cajas de cartón)
+      'upc_a',          // UPC-A (productos en América del Norte)
+      'upc_e',          // UPC-E (versión compacta de UPC-A)
+      'pdf417',         // PDF417 (2D, licencias de conducir)
+      'aztec',          // Aztec (2D, boletos de transporte)
+      'data_matrix',    // Data Matrix (2D, industria)
+      'qr_code'         // QR Code (2D, muy común)
+    ]
   });
 
   // Paso 2: Obtener acceso a la cámara
@@ -265,12 +279,20 @@ function startDetection(barcodeDetector) {
           const detectedBarcode = barcodes[0];
           let displayValue = detectedBarcode.rawValue;
 
-          // Para códigos EAN-13, mostrar solo los primeros 9 dígitos
-          if (detectedBarcode.format === 'ean_13' && detectedBarcode.rawValue.length >= 9) {
+          // Procesar diferentes formatos de códigos
+          const format = detectedBarcode.format;
+
+          if (format === 'ean_13' && detectedBarcode.rawValue.length >= 9) {
+            // Para EAN-13, mostrar solo los primeros 9 dígitos
             displayValue = detectedBarcode.rawValue.substring(0, 9);
+          } else if (format === 'qr_code' && displayValue.length > 50) {
+            // Para QR codes muy largos, mostrar solo los primeros 50 caracteres
+            displayValue = displayValue.substring(0, 50) + '...';
           }
 
-          resultElement.textContent = `${displayValue}`;
+          // Mostrar formato y valor
+          resultElement.innerHTML = `<strong>${format.toUpperCase()}:</strong> ${displayValue}`;
+          console.log(`Código detectado - Formato: ${format}, Valor: ${detectedBarcode.rawValue}`);
         }
       }
     } catch (err) {
@@ -380,9 +402,14 @@ function startQuaggaDetection() {
     },
     decoder: {
       readers: [
-        "ean_reader",     // Para EAN-13 y EAN-8 (genérico)
-        "ean_13_reader",  // Específicamente EAN-13
-        "ean_8_reader"    // Específicamente EAN-8
+        "ean_reader",       // Para EAN-13 y EAN-8 (genérico)
+        "ean_13_reader",    // Específicamente EAN-13
+        "ean_8_reader",     // Específicamente EAN-8
+        "code_128_reader",  // Code 128 (muy común)
+        "code_39_reader",   // Code 39 (alfanumérico)
+        "code_39_vin_reader", // Code 39 para VIN
+        "codabar_reader",   // Codabar
+        "i2of5_reader"      // Interleaved 2 of 5
       ]
     },
     locate: true,
@@ -445,12 +472,17 @@ function startQuaggaDetection() {
     let code = result.codeResult.code;
     let format = result.codeResult.format;
 
-    // Para códigos EAN-13, mostrar solo los primeros 9 dígitos
+    // Procesar diferentes formatos
+    let displayValue = code;
+
     if (format === 'ean_13' && code.length >= 9) {
-      code = code.substring(0, 9);
+      // Para EAN-13, mostrar solo los primeros 9 dígitos
+      displayValue = code.substring(0, 9);
     }
 
-    resultElement.textContent = `${code}`;
+    // Mostrar formato y valor
+    resultElement.innerHTML = `<strong>${format.toUpperCase()}:</strong> ${displayValue}`;
+    console.log(`Código detectado con QuaggaJS - Formato: ${format}, Valor: ${code}`);
   });
 
   // Listener para errores
