@@ -363,8 +363,24 @@ function initQuaggaScanner() {
       videoElement.srcObject = stream;
       console.log('Stream de cámara establecido para QuaggaJS');
 
-      // Configurar controles básicos (sin zoom para QuaggaJS)
-      flashButton.style.display = 'none';
+      // Verificar capacidades de la cámara también en QuaggaJS
+      const videoTrack = stream.getVideoTracks()[0];
+      const capabilities = videoTrack.getCapabilities();
+
+      console.log('Capacidades de cámara en QuaggaJS:', capabilities);
+
+      // Configurar flash si está disponible (incluso en QuaggaJS)
+      if (capabilities.torch || 'torch' in capabilities) {
+        flashButton.style.display = 'block';
+        currentVideoTrack = videoTrack; // Guardar referencia para el flash
+        flashButton.addEventListener('click', toggleFlash);
+        console.log('Flash disponible en iOS/QuaggaJS');
+      } else {
+        flashButton.style.display = 'none';
+        console.log('Flash no disponible en este dispositivo iOS');
+      }
+
+      // Ocultar controles de zoom (QuaggaJS no los soporta bien)
       zoomInButton.style.display = 'none';
       zoomOutButton.style.display = 'none';
       zoomIndicator.style.display = 'none';
@@ -386,8 +402,16 @@ function startQuaggaDetection() {
   console.log('Iniciando detección con QuaggaJS');
   resultElement.textContent = 'Configurando detector...';
 
+  // Verificar que Quagga esté disponible
+  if (typeof Quagga === 'undefined') {
+    console.error('Quagga no está definido');
+    resultElement.textContent = '❌ Error: QuaggaJS no se cargó correctamente';
+    return;
+  }
+
   // Configuración optimizada para diferentes dispositivos
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  console.log('Detectando iOS en startQuaggaDetection:', isIOS);
 
   const quaggaConfig = {
     inputStream: {
@@ -421,27 +445,48 @@ function startQuaggaDetection() {
 
   // Configuraciones adicionales para iOS
   if (isIOS) {
-    console.log('Aplicando configuración optimizada para iOS');
-    quaggaConfig.locator.debug = {
-      showCanvas: false,
-      showPatches: false,
-      showFoundPatches: false,
-      showSkeleton: false,
-      showLabels: false,
-      showPatchLabels: false,
-      showRemainingPatchLabels: false,
-      boxFromPatches: {
-        showTransformed: false,
-        showTransformedBox: false,
-        showBB: false
-      }
+    console.log('Aplicando configuración simplificada para iOS');
+
+    // Configuración más simple para iOS
+    quaggaConfig.locator = {
+      patchSize: "large",
+      halfSample: false
     };
+
+    // Reducir lectores para iOS (menos carga)
+    quaggaConfig.decoder.readers = [
+      "ean_reader",
+      "ean_13_reader",
+      "code_128_reader"
+    ];
+
+    console.log('Configuración iOS aplicada:', quaggaConfig);
   }
 
+  // Agregar timeout para iOS
+  const initTimeout = setTimeout(() => {
+    console.error('Timeout inicializando Quagga en iOS');
+    resultElement.textContent = '⚠️ Timeout de inicialización. Intente recargar la página.';
+
+    const apiInfo = document.getElementById('api-info');
+    if (apiInfo) {
+      apiInfo.innerHTML = '⚠️ <strong>Timeout de inicialización</strong> - Recargue la página';
+      apiInfo.style.color = '#FF9800';
+    }
+  }, 10000); // 10 segundos timeout
+
   Quagga.init(quaggaConfig, function(err) {
+    clearTimeout(initTimeout); // Cancelar timeout si inicializa correctamente
+
     if (err) {
       console.error('Error inicializando Quagga:', err);
-      resultElement.textContent = 'Error inicializando el scanner. Intente recargar la página.';
+
+      // Mensaje específico para iOS
+      if (isIOS) {
+        resultElement.textContent = '❌ Error de inicialización en iOS. Intente: 1) Recargar página 2) Dar permisos de cámara';
+      } else {
+        resultElement.textContent = 'Error inicializando el scanner. Intente recargar la página.';
+      }
 
       // Actualizar API info con el error
       const apiInfo = document.getElementById('api-info');
@@ -449,6 +494,14 @@ function startQuaggaDetection() {
         apiInfo.innerHTML = '❌ <strong>Error de inicialización</strong>';
         apiInfo.style.color = '#F44336';
       }
+
+      // Fallback: mostrar al menos la cámara sin detección automática
+      if (isIOS) {
+        setTimeout(() => {
+          resultElement.innerHTML = '📷 <strong>Modo manual:</strong> La cámara está activa. QuaggaJS tuvo problemas de inicialización.';
+        }, 2000);
+      }
+
       return;
     }
 
@@ -462,7 +515,13 @@ function startQuaggaDetection() {
       apiInfo.style.color = '#4CAF50';
     }
 
-    Quagga.start();
+    try {
+      Quagga.start();
+      console.log('Quagga.start() ejecutado exitosamente');
+    } catch (startErr) {
+      console.error('Error al iniciar Quagga:', startErr);
+      resultElement.textContent = '❌ Error al iniciar el scanner. Verifique los permisos de cámara.';
+    }
   });
 
   // Listener para detección de códigos
