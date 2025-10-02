@@ -112,22 +112,10 @@ function initBarcodeScanner() {
 }
 
 function initNativeBarcodeDetector() {
-  console.log('Usando BarcodeDetector nativo');
+  console.log('Usando BarcodeDetector nativo - Solo EAN-13');
   const barcodeDetector = new BarcodeDetector({
     formats: [
-      'ean_13',         // Códigos de productos (13 dígitos)
-      'ean_8',          // Códigos de productos (8 dígitos)
-      'code_128',       // Código 128 (muy común en logística)
-      'code_39',        // Código 39 (alfanumérico)
-      'code_93',        // Código 93 (mejora del 39)
-      'codabar',        // Codabar (bibliotecas, bancos de sangre)
-      'itf',            // Interleaved 2 of 5 (cajas de cartón)
-      'upc_a',          // UPC-A (productos en América del Norte)
-      'upc_e',          // UPC-E (versión compacta de UPC-A)
-      'pdf417',         // PDF417 (2D, licencias de conducir)
-      'aztec',          // Aztec (2D, boletos de transporte)
-      'data_matrix',    // Data Matrix (2D, industria)
-      'qr_code'         // QR Code (2D, muy común)
+      'ean_13'         // Códigos de productos (13 dígitos)
     ]
   });
 
@@ -286,19 +274,16 @@ function startDetection(barcodeDetector) {
           const detectedBarcode = barcodes[0];
           let displayValue = detectedBarcode.rawValue;
 
-          // Procesar diferentes formatos de códigos
+          // Procesar código EAN-13
           const format = detectedBarcode.format;
 
           if (format === 'ean_13' && detectedBarcode.rawValue.length >= 9) {
             // Para EAN-13, mostrar solo los primeros 9 dígitos
             displayValue = detectedBarcode.rawValue.substring(0, 9);
-          } else if (format === 'qr_code' && displayValue.length > 50) {
-            // Para QR codes muy largos, mostrar solo los primeros 50 caracteres
-            displayValue = displayValue.substring(0, 50) + '...';
           }
 
-          // Mostrar formato y valor barcodeDetector nativo
-          resultElement.innerHTML = `<strong>${format.toUpperCase()}:</strong> ${displayValue}`;
+          // Mostrar formato y valor - Solo EAN-13
+          resultElement.innerHTML = `<strong>EAN-13:</strong> ${displayValue}`;
           console.log(`Código detectado - Formato: ${format}, Valor: ${detectedBarcode.rawValue}`);
           sonidoAlarma.play();
         }
@@ -524,7 +509,7 @@ function startQuaggaDetection() {
   let quaggaConfig;
 
   if (isIOS) {
-    console.log('Aplicando configuración ultra-simple para iOS');
+    console.log('Aplicando configuración ultra-simple para iOS - Solo EAN-13');
     quaggaConfig = {
       inputStream: {
         name: "Live",
@@ -532,12 +517,12 @@ function startQuaggaDetection() {
         target: videoElement
       },
       decoder: {
-        readers: ["ean_reader"] // Solo el lector más básico
+        readers: ["ean_13_reader"] // Solo EAN-13
       },
       locate: false // Desactivar localización para simplificar
     };
   } else {
-    // Configuración completa para otros dispositivos
+    // Configuración para otros dispositivos - Solo EAN-13
     quaggaConfig = {
       inputStream: {
         name: "Live",
@@ -551,11 +536,7 @@ function startQuaggaDetection() {
       },
       decoder: {
         readers: [
-          "ean_reader",
-          "ean_13_reader",
-          "ean_8_reader",
-          "code_128_reader",
-          "code_39_reader"
+          "ean_13_reader" // Solo EAN-13
         ]
       },
       locate: true,
@@ -662,7 +643,7 @@ function startQuaggaDetection() {
     let code = result.codeResult.code;
     let format = result.codeResult.format;
 
-    // Procesar diferentes formatos
+    // Procesar código EAN-13
     let displayValue = code;
 
     if (format === 'ean_13' && code.length >= 9) {
@@ -670,8 +651,8 @@ function startQuaggaDetection() {
       displayValue = code.substring(0, 9);
     }
 
-    // Mostrar formato y valor Código detectado con QuaggaJS
-    resultElement.innerHTML = `<strong>${format.toUpperCase()}:</strong> ${displayValue}`;
+    // Mostrar formato y valor - Solo EAN-13
+    resultElement.innerHTML = `<strong>EAN-13:</strong> ${displayValue}`;
     console.log(`Código detectado con QuaggaJS - Formato: ${format}, Valor: ${code}`);
     sonidoAlarma.play();
   });
