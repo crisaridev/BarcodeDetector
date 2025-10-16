@@ -15,50 +15,16 @@ const sonidoAlarma = new Audio('store-scanner-beep-90395.mp3'); // Asegúrate de
 
 // Enviar código al backend
 async function sendBarcodeToServer(code, format) {
-  try {
-    const payload = {
-      code: code,
-      format: format,
-      evento: currentEventName,
-      fecha: currentEventDate,
-      userAgent: navigator.userAgent
-    };
-
-    const res = await fetch('http://localhost:8080/api/barcodes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    if (res.status === 400) {
-      // Validation errors returned as a map { field: message }
-      const errJson = await res.json().catch(() => null);
-      console.warn('Validation error from backend', errJson);
-
-      let msg = '<strong>Errores del servidor:</strong><br>';
-      if (errJson && typeof errJson === 'object') {
-        for (const [field, message] of Object.entries(errJson)) {
-          msg += `${field}: ${message}<br>`;
-        }
-      } else if (errJson) {
-        msg += JSON.stringify(errJson);
-      } else {
-        msg += 'Error de validación (formato inesperado)';
-      }
-
-      if (resultElement) resultElement.innerHTML = msg;
-      return;
-    } else if (!res.ok) {
-      console.error('Error enviando al backend', res.status);
-      if (resultElement) resultElement.textContent = `Error al enviar al servidor: ${res.status}`;
-      return;
-    } else {
-      const data = await res.json();
-      console.log('Guardado en backend:', data);
-      if (resultElement) resultElement.innerHTML = `<strong>Guardado:</strong> ${data.code} (id: ${data.id || '—'})`;
-    }
-  } catch (err) {
-    console.error('Error de conexión al backend:', err);
-  }
+  // Temporalmente deshabilitado: no enviar nada al backend desde el cliente.
+  // Esto evita llamadas de red mientras se trabaja en la integración del servidor.
+  console.log('sendBarcodeToServer (deshabilitado) - código detectado:', {
+    code,
+    format,
+    evento: currentEventName,
+    fecha: currentEventDate
+  });
+  // Devolver una promesa resuelta para mantener compatibilidad con llamadas await
+  return Promise.resolve({ disabled: true });
 }
 
 
@@ -83,6 +49,15 @@ function initBarcodeScanner() {
 
   if (startScanButton) {
     startScanButton.addEventListener('click', startScan);
+  }
+
+  // Si el formulario existe, interceptar su submit para prevenir recarga y usar startScan
+  const scanForm = document.getElementById('scan-form');
+  if (scanForm) {
+    scanForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      startScan();
+    });
   }
 
   // Paso 1: Comprobar la compatibilidad y crear una instancia del detector
@@ -160,8 +135,11 @@ function initBarcodeScanner() {
 }
 
 // Inicia el escaneo después de validar inputs
-async function startScan() {
+function startScan(event) {
   if (scanningStarted) return;
+
+  // soportar ser llamado como handler de submit
+  if (event && event.preventDefault) event.preventDefault();
 
   const eventName = eventNameInput ? eventNameInput.value.trim() : '';
   const eventDate = eventDateInput ? eventDateInput.value : '';
@@ -178,54 +156,18 @@ async function startScan() {
     return;
   }
 
-  // Guardar datos del evento
-  // Antes de iniciar, registrar el evento en el backend
-  try {
-    const evRes = await fetch('http://localhost:8080/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ evento: eventName, fecha: eventDate })
-    });
+  // Guardar datos del evento y marcar que se inició el escaneo
+  currentEventName = eventName;
+  currentEventDate = eventDate;
+  scanningStarted = true;
 
-    if (!evRes.ok) {
-      const err = await evRes.json().catch(() => null);
-      let msg = 'No se pudo registrar el evento.';
-      if (err && typeof err === 'object') {
-        msg += ' ' + Object.entries(err).map(([k,v]) => `${k}: ${v}`).join(' ');
-      }
-      resultElement.textContent = msg;
-      return;
-    }
+  if (resultElement) resultElement.textContent = 'Iniciando cámara y detector...';
 
-    // Registrar localmente y arrancar scanner
-    currentEventName = eventName;
-    currentEventDate = eventDate;
-    scanningStarted = true;
-
-    // Actualizar UI
-    if (eventNameInput) eventNameInput.disabled = true;
-    if (eventDateInput) eventDateInput.disabled = true;
-    if (startScanButton) {
-      startScanButton.disabled = true;
-      startScanButton.textContent = 'Escaneando...';
-    }
-
-    resultElement.textContent = `Evento: ${currentEventName} • Fecha: ${currentEventDate} — Iniciando cámara...`;
-
-    // Iniciar scanner según compatibilidad guardada
-    if (cachedHasBarcodeDetector) {
-      initNativeBarcodeDetector();
-    } else {
-      resultElement.textContent = 'BarcodeDetector no disponible, cargando fallback...';
-      if (cachedIsIOS) {
-        loadQuaggaJSWithFastFallback();
-      } else {
-        loadQuaggaJS();
-      }
-    }
-  } catch (err) {
-    console.error('Error registrando evento:', err);
-    resultElement.textContent = 'Error conectando al servidor para registrar evento.';
+  // Elegir detector: nativo si está disponible (y no iOS), si no usar QuaggaJS fallback
+  if (cachedHasBarcodeDetector && !cachedIsIOS) {
+    initNativeBarcodeDetector();
+  } else {
+    loadQuaggaJSWithFastFallback();
   }
 }
 
