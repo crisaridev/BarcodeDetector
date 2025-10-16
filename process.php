@@ -6,5 +6,5 @@ echo $nombreEvento;
 echo $fechaEvento;
 echo $numeroCuenta;
 
-header ('Locatio: ./index.html');
+header ('Location: ./index.html');
 ?>
