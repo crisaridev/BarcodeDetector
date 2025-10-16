@@ -60,6 +60,21 @@ function initBarcodeScanner() {
     });
   }
 
+  // Inicializar valores actuales y mantener sincronizados los inputs con las variables
+  if (eventNameInput) {
+    currentEventName = eventNameInput.value ? eventNameInput.value.trim() : null;
+    eventNameInput.addEventListener('input', function(e) {
+      currentEventName = e.target.value.trim();
+    });
+  }
+
+  if (eventDateInput) {
+    currentEventDate = eventDateInput.value || null;
+    eventDateInput.addEventListener('change', function(e) {
+      currentEventDate = e.target.value;
+    });
+  }
+
   // Paso 1: Comprobar la compatibilidad y crear una instancia del detector
   console.log('Verificando compatibilidad de BarcodeDetector...');
   console.log('Navigator userAgent:', navigator.userAgent);
