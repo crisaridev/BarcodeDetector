@@ -149,6 +149,44 @@ function initBarcodeScanner() {
   }
 }
 
+// Helpers para mostrar/ocultar UI de zoom de forma centralizada
+function showZoomUI() {
+  try {
+    if (zoomInButton) zoomInButton.style.display = 'inline-block';
+    if (zoomOutButton) zoomOutButton.style.display = 'inline-block';
+    if (zoomIndicator) zoomIndicator.style.display = 'block';
+  } catch (e) {
+    console.warn('Error mostrando UI de zoom:', e);
+  }
+}
+
+function hideZoomUI() {
+  try {
+    if (zoomInButton) zoomInButton.style.display = 'none';
+    if (zoomOutButton) zoomOutButton.style.display = 'none';
+    if (zoomIndicator) zoomIndicator.style.display = 'none';
+  } catch (e) {
+    console.warn('Error ocultando UI de zoom:', e);
+  }
+}
+
+// Helpers para mostrar/ocultar UI de flash
+function showFlashUI() {
+  try {
+    if (flashButton) flashButton.style.display = 'inline-block';
+  } catch (e) {
+    console.warn('Error mostrando UI de flash:', e);
+  }
+}
+
+function hideFlashUI() {
+  try {
+    if (flashButton) flashButton.style.display = 'none';
+  } catch (e) {
+    console.warn('Error ocultando UI de flash:', e);
+  }
+}
+
 // Inicia el escaneo después de validar inputs
 function startScan(event) {
   if (scanningStarted) return;
@@ -205,32 +243,50 @@ function initNativeBarcodeDetector() {
 
       console.log('Capacidades de la cámara:', capabilities);
 
-      // Configurar flash
-      if (capabilities.torch || 'torch' in capabilities) {
-        flashButton.style.display = 'block';
-        flashButton.addEventListener('click', toggleFlash);
-        console.log('Flash disponible');
-      } else {
-        console.log('Flash no disponible en este dispositivo');
-        flashButton.style.display = 'none';
+      // Configurar flash — mostrar solo si la capability torch es true
+      try {
+        const hasTorch = (typeof capabilities.torch === 'boolean' && capabilities.torch === true) ||
+                         (capabilities.torch && typeof capabilities.torch === 'object' && capabilities.torch.max === true) ||
+                         false;
+
+        if (hasTorch) {
+          showFlashUI();
+          currentVideoTrack = stream.getVideoTracks()[0];
+          // Remover listener previo por seguridad
+          flashButton.replaceWith(flashButton.cloneNode(true));
+          flashButton = document.getElementById('flash-button');
+          flashButton.addEventListener('click', toggleFlash);
+          console.log('Flash disponible');
+        } else {
+          hideFlashUI();
+          console.log('Flash no disponible en este dispositivo');
+        }
+      } catch (e) {
+        console.warn('Error verificando torch capability:', e);
+        hideFlashUI();
       }
 
       // Configurar zoom
       if (capabilities.zoom) {
-        minZoom = capabilities.zoom.min || 1.0;
-        maxZoom = capabilities.zoom.max || 3.0;
-        currentZoom = capabilities.zoom.min || 1.0;
+        // Algunas cámaras devuelven zoom como { min, max }, otras como número
+        if (typeof capabilities.zoom === 'object') {
+          minZoom = capabilities.zoom.min || 1.0;
+          maxZoom = capabilities.zoom.max || 3.0;
+          currentZoom = capabilities.zoom.min || 1.0;
+        } else {
+          // soporte rudimentario
+          minZoom = 1.0;
+          maxZoom = Math.max(3.0, capabilities.zoom || 3.0);
+          currentZoom = minZoom;
+        }
 
-        zoomInButton.style.display = 'block';
-        zoomOutButton.style.display = 'block';
-        zoomIndicator.style.display = 'block';
-
+        showZoomUI();
         zoomInButton.addEventListener('click', zoomIn);
         zoomOutButton.addEventListener('click', zoomOut);
-
         updateZoomIndicator();
         console.log(`Zoom disponible: ${minZoom}x - ${maxZoom}x`);
       } else {
+        hideZoomUI();
         console.log('Zoom no disponible en este dispositivo');
       }
 
@@ -247,49 +303,39 @@ function initNativeBarcodeDetector() {
 // Función para alternar el flash
 async function toggleFlash() {
   try {
-    const videoTrack = videoElement.srcObject.getVideoTracks()[0];
-    console.log('Intentando alternar flash. Estado actual:', isFlashOn);
-
-    // Método 1: Usando constraints básicos
-    try {
-      await videoTrack.applyConstraints({
-        torch: !isFlashOn
-      });
-      console.log('Método 1 exitoso');
-    } catch (error1) {
-      console.log('Método 1 falló, probando método 2:', error1);
-
-      // Método 2: Usando constraints avanzados
-      try {
-        await videoTrack.applyConstraints({
-          advanced: [{
-            torch: !isFlashOn
-          }]
-        });
-        console.log('Método 2 exitoso');
-      } catch (error2) {
-        console.log('Método 2 falló, probando método 3:', error2);
-
-        // Método 3: Recrear el stream con torch
-        const newStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'environment',
-            torch: !isFlashOn
-          }
-        });
-
-        videoElement.srcObject = newStream;
-        console.log('Método 3 exitoso');
-      }
+    if (!currentVideoTrack && videoElement && videoElement.srcObject) {
+      currentVideoTrack = videoElement.srcObject.getVideoTracks()[0];
     }
 
+    if (!currentVideoTrack) {
+      console.warn('toggleFlash: no hay video track disponible');
+      return;
+    }
+
+    const caps = currentVideoTrack.getCapabilities ? currentVideoTrack.getCapabilities() : {};
+    const supportsTorch = typeof caps.torch === 'boolean' ? caps.torch === true : Boolean(caps.torch);
+
+    if (!supportsTorch) {
+      console.warn('toggleFlash: torch no soportado por este dispositivo');
+      // Asegurarse que el botón no provoque confusión
+      hideFlashUI();
+      return;
+    }
+
+    // Intentar aplicar constraint de torch
+    await currentVideoTrack.applyConstraints({ advanced: [{ torch: !isFlashOn }] });
     isFlashOn = !isFlashOn;
-    flashButton.textContent = isFlashOn ? '🔦 Apagar Flash' : '🔦 Encender Flash';
-    flashButton.style.backgroundColor = isFlashOn ? '#ff6b6b' : '#4ecdc4';
+    if (flashButton) {
+      flashButton.textContent = isFlashOn ? '🔦 Apagar Flash' : '🔦 Encender Flash';
+      flashButton.style.backgroundColor = isFlashOn ? '#ff6b6b' : '#4ecdc4';
+    }
+    console.log('toggleFlash: torch toggled ->', isFlashOn);
 
   } catch (err) {
     console.error('Error al alternar flash:', err);
-    resultElement.textContent = `Error con el flash: ${err.message}`;
+    if (resultElement) resultElement.textContent = `Error con el flash: ${err.message}`;
+    // Si falla, ocultar UI para evitar más intentos
+    hideFlashUI();
   }
 }
 
@@ -429,18 +475,31 @@ function initManualModeForIOS() {
     const videoTrack = stream.getVideoTracks()[0];
     const capabilities = videoTrack.getCapabilities();
 
-    if (capabilities.torch || 'torch' in capabilities) {
-      flashButton.style.display = 'block';
+    // Mostrar flash solo si la capability torch está explícitamente soportada
+    const hasTorch = (typeof capabilities.torch === 'boolean' && capabilities.torch === true) || false;
+    if (hasTorch) {
+      showFlashUI();
       currentVideoTrack = videoTrack;
       flashButton.addEventListener('click', toggleFlash);
     } else {
-      flashButton.style.display = 'none';
+      hideFlashUI();
     }
 
-    // Ocultar zoom
-    zoomInButton.style.display = 'none';
-    zoomOutButton.style.display = 'none';
-    zoomIndicator.style.display = 'none';
+    // Ocultar o mostrar zoom según capacidades
+    if (capabilities.zoom) {
+      // Para iOS en modo manual podríamos respetar el zoom si existe
+      if (typeof capabilities.zoom === 'object') {
+        minZoom = capabilities.zoom.min || 1.0;
+        maxZoom = capabilities.zoom.max || 3.0;
+        currentZoom = capabilities.zoom.min || 1.0;
+      }
+      showZoomUI();
+      zoomInButton.addEventListener('click', zoomIn);
+      zoomOutButton.addEventListener('click', zoomOut);
+      updateZoomIndicator();
+    } else {
+      hideZoomUI();
+    }
 
     // Configurar UI para modo manual
     resultElement.innerHTML = `
@@ -541,20 +600,36 @@ function initQuaggaScanner() {
       console.log('Capacidades de cámara en QuaggaJS:', capabilities);
 
       // Configurar flash si está disponible (incluso en QuaggaJS)
-      if (capabilities.torch || 'torch' in capabilities) {
-        flashButton.style.display = 'block';
-        currentVideoTrack = videoTrack; // Guardar referencia para el flash
-        flashButton.addEventListener('click', toggleFlash);
-        console.log('Flash disponible en iOS/QuaggaJS');
-      } else {
-        flashButton.style.display = 'none';
-        console.log('Flash no disponible en este dispositivo iOS');
+      try {
+        const hasTorchQ = (typeof capabilities.torch === 'boolean' && capabilities.torch === true) || false;
+        if (hasTorchQ) {
+          showFlashUI();
+          currentVideoTrack = videoTrack; // Guardar referencia para el flash
+          flashButton.addEventListener('click', toggleFlash);
+          console.log('Flash disponible en iOS/QuaggaJS');
+        } else {
+          hideFlashUI();
+          console.log('Flash no disponible en este dispositivo iOS');
+        }
+      } catch (e) {
+        hideFlashUI();
+        console.warn('Error comprobando torch en Quagga:', e);
       }
 
-      // Ocultar controles de zoom (QuaggaJS no los soporta bien)
-      zoomInButton.style.display = 'none';
-      zoomOutButton.style.display = 'none';
-      zoomIndicator.style.display = 'none';
+      // Mostrar/ocultar controles de zoom si la cámara lo soporta
+      if (capabilities.zoom) {
+        if (typeof capabilities.zoom === 'object') {
+          minZoom = capabilities.zoom.min || 1.0;
+          maxZoom = capabilities.zoom.max || 3.0;
+          currentZoom = capabilities.zoom.min || 1.0;
+        }
+        showZoomUI();
+        zoomInButton.addEventListener('click', zoomIn);
+        zoomOutButton.addEventListener('click', zoomOut);
+        updateZoomIndicator();
+      } else {
+        hideZoomUI();
+      }
 
       console.log('Controles de cámara configurados para QuaggaJS');
 

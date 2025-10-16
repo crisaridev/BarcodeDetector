@@ -9,23 +9,27 @@
 <body>
   <div class="container">
     <h1>Lector de Códigos de Barra</h1>
-    <!-- Inputs para evento y fecha -->
+    <!-- Formulario responsivo para evento y fecha -->
     <form id="scan-form" action="process.php" method="post" class="scan-setup">
-      <label for="event-name">Evento:</label>
-      <input type="text" id="event-name" name="event_name" placeholder="Nombre del evento" />
-
-      <label for="event-date">Fecha del evento:</label>
-      <input type="date" id="event-date" name="event_date" />
-
+      <div class="form-group">
+        <label for="event-name">Evento</label>
+        <input type="text" id="event-name" name="event_name" placeholder="Nombre del evento" required autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="event-date">Fecha</label>
+        <input type="date" id="event-date" name="event_date" required />
+      </div>
+      <button id="start-scan" type="submit" class="main-action">Iniciar Escaneo</button>
     </form>
-    <button id="start-scan" type="submit">Iniciar Escaneo</button>
-    <video id="scanner-video" autoplay muted playsinline></video>
+    <div class="video-wrapper">
+      <video id="scanner-video" autoplay muted playsinline></video>
+    </div>
 
     <!-- Controles de cámara -->
     <div class="control-buttons">
-      <button id="flash-button">🔦 Encender Flash</button>
-      <button id="zoom-out" class="zoom-button">🔍- Zoom Out</button>
-      <button id="zoom-in" class="zoom-button">🔍+ Zoom In</button>
+      <button id="flash-button" type="button">🔦 Flash</button>
+      <button id="zoom-out" class="zoom-button" type="button">🔍-</button>
+      <button id="zoom-in" class="zoom-button" type="button">🔍+</button>
     </div>
 
     <!-- Indicador de zoom -->
