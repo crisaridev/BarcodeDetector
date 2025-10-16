@@ -4,6 +4,7 @@ $fechaEvento=$_POST['event_date'];
 $numeroCuenta=$_POST[''];
 echo $nombreEvento;
 echo $fechaEvento;
+echo $numeroCuenta;
 
 header ('Locatio: ./index.html');
 ?>
