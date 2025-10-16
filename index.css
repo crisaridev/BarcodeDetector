@@ -204,3 +204,79 @@ h1 {
     border-radius: 0;
   }
 }
+
+/* Modal de confirmación */
+.modal { 
+  position: fixed;
+  inset: 0;
+  display: none; /* visible via JS */
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.modal[aria-hidden="false"] { display: flex; }
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+}
+.modal-panel {
+  position: relative;
+  max-width: 420px;
+  width: calc(100% - 40px);
+  background: linear-gradient(180deg, #ffffff, #fbfbfb);
+  color: #111;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  transform: translateY(-8px);
+}
+.modal-close {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #666;
+  cursor: pointer;
+}
+.modal-close:hover { color: #333; transform: scale(1.05); }
+.modal-panel h2 {
+  margin: 0 0 8px 0;
+  color: #232526;
+}
+.modal-body {
+  margin: 12px 0;
+}
+#modal-barcode-input, #modal-barcode-input:focus {
+  width: 100%;
+}
+#modal-barcode-input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 1rem;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.secondary-action, .tertiary-action {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+.secondary-action:hover, .tertiary-action:hover {
+  transform: translateY(-2px);
+}
+.tertiary-action {
+  background: transparent;
+  border: none;
+  color: #666;
+}

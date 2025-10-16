@@ -12,6 +12,13 @@ let scanningStarted = false;
 let cachedHasBarcodeDetector = false;
 let cachedIsIOS = false;
 const sonidoAlarma = new Audio('store-scanner-beep-90395.mp3'); // Asegúrate de que la ruta sea correcta
+let barcodeModal, modalBackdrop, modalBarcodeInput, modalConfirmBtn, modalEditBtn, modalCancelBtn, modalCloseBtn;
+let pendingBarcode = null;
+// Detection state
+let detectionMode = null; // 'native' | 'quagga' | null
+let nativeIntervalId = null;
+let lastNativeDetector = null;
+let quaggaActive = false;
 
 // Enviar código al backend
 async function sendBarcodeToServer(code, format) {
@@ -146,6 +153,112 @@ function initBarcodeScanner() {
   // Pedir al usuario que complete los datos del evento antes de iniciar
   if (resultElement) {
     resultElement.textContent = 'Complete Evento y Fecha, luego presione "Iniciar Escaneo".';
+  }
+
+  // Inicializar modal
+  barcodeModal = document.getElementById('barcode-modal');
+  modalBackdrop = document.getElementById('modal-backdrop');
+  modalBarcodeInput = document.getElementById('modal-barcode-input');
+  modalConfirmBtn = document.getElementById('modal-confirm');
+  modalEditBtn = document.getElementById('modal-edit');
+  modalCloseBtn = document.getElementById('modal-close');
+
+  if (modalBackdrop) modalBackdrop.addEventListener('click', hideBarcodeModal);
+  if (modalCloseBtn) modalCloseBtn.addEventListener('click', hideBarcodeModal);
+  if (modalEditBtn) modalEditBtn.addEventListener('click', function() {
+    // allow user to edit the detected code in the input
+    modalBarcodeInput.focus();
+  });
+  if (modalConfirmBtn) modalConfirmBtn.addEventListener('click', function() {
+    // Confirm: submit the form with the barcode
+    const codeToSend = modalBarcodeInput.value.trim();
+    submitFormWithBarcode(codeToSend);
+    hideBarcodeModal();
+  });
+}
+
+function showBarcodeModal(code) {
+  if (!barcodeModal) return;
+  // if already open, ignore
+  if (barcodeModal.getAttribute('aria-hidden') === 'false') return;
+  pendingBarcode = code;
+  modalBarcodeInput.value = code || '';
+  barcodeModal.setAttribute('aria-hidden', 'false');
+  // Pause detection to avoid duplicate modals
+  pauseDetection();
+}
+
+function hideBarcodeModal() {
+  if (!barcodeModal) return;
+  barcodeModal.setAttribute('aria-hidden', 'true');
+  pendingBarcode = null;
+  // Resume detection after modal closed
+  resumeDetection();
+}
+
+function submitFormWithBarcode(code) {
+  try {
+    const form = document.getElementById('scan-form');
+    if (!form) return;
+
+    // Create or update hidden barcode input
+    let hidden = document.getElementById('barcode-hidden');
+    if (!hidden) {
+      hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.id = 'barcode-hidden';
+      hidden.name = 'barcode';
+      form.appendChild(hidden);
+    }
+    hidden.value = code;
+
+    // Submit the form natively
+    form.submit();
+  } catch (e) {
+    console.error('Error al crear/submit el formulario con barcode:', e);
+  }
+}
+
+// Pause and resume detection helpers
+function pauseDetection() {
+  try {
+    if (detectionMode === 'native' && nativeIntervalId) {
+      clearInterval(nativeIntervalId);
+      nativeIntervalId = null;
+      console.log('Detección nativa pausada');
+    }
+
+    if (detectionMode === 'quagga' && typeof Quagga !== 'undefined' && quaggaActive) {
+      if (Quagga.pause) {
+        Quagga.pause();
+        console.log('Quagga pausado');
+      } else if (Quagga.stop) {
+        Quagga.stop();
+        console.log('Quagga detenido');
+      }
+      quaggaActive = false;
+    }
+  } catch (e) {
+    console.warn('Error pausing detection:', e);
+  }
+}
+
+function resumeDetection() {
+  try {
+    if (detectionMode === 'native' && !nativeIntervalId && lastNativeDetector) {
+      console.log('Reanudando detección nativa');
+      startDetection(lastNativeDetector);
+    }
+
+    if (detectionMode === 'quagga' && typeof Quagga !== 'undefined' && !quaggaActive) {
+      if (Quagga.start) {
+        Quagga.start();
+        quaggaActive = true;
+        console.log('Quagga reanudado');
+      }
+    }
+  } catch (e) {
+    console.warn('Error reanudando detection:', e);
   }
 }
 
@@ -387,7 +500,11 @@ function updateZoomIndicator() {
 
 // Función para el bucle de detección con BarcodeDetector nativo
 function startDetection(barcodeDetector) {
-  const intervalId = setInterval(async () => {
+  // Register detection mode and detector so pause/resume can control it
+  detectionMode = 'native';
+  lastNativeDetector = barcodeDetector;
+  if (nativeIntervalId) clearInterval(nativeIntervalId);
+  nativeIntervalId = setInterval(async () => {
     try {
       if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
         const barcodes = await barcodeDetector.detect(videoElement);
@@ -409,7 +526,7 @@ function startDetection(barcodeDetector) {
           sonidoAlarma.play();
                   // Enviar al backend si está configurado el evento
                   if (scanningStarted && currentEventName && currentEventDate) {
-                    sendBarcodeToServer(displayValue, 'EAN-13');
+                    showBarcodeModal(displayValue);
                   }
         }
       }
@@ -783,7 +900,9 @@ function startQuaggaDetection() {
 
     try {
       Quagga.start();
-      console.log('Quagga.start() ejecutado exitosamente');
+      detectionMode = 'quagga';
+      quaggaActive = true;
+      console.log('Quagga.start() ejecutado exitosamente (quaggaActive=true)');
     } catch (startErr) {
       console.error('Error al iniciar Quagga:', startErr);
       resultElement.textContent = '❌ Error al iniciar el scanner. Verifique los permisos de cámara.';
@@ -811,7 +930,7 @@ function startQuaggaDetection() {
     sonidoAlarma.play();
     // Enviar al backend si está configurado el evento
     if (scanningStarted && currentEventName && currentEventDate) {
-      sendBarcodeToServer(displayValue, 'EAN-13');
+      showBarcodeModal(displayValue);
     }
   });
 
