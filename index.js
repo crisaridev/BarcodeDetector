@@ -201,15 +201,16 @@ function submitFormWithBarcode(code) {
     const form = document.getElementById('scan-form');
     if (!form) return;
 
-    // Create or update hidden barcode input
-    let hidden = document.getElementById('barcode-hidden');
+    // Create or update hidden account_number input (sent to process.php)
+    let hidden = document.getElementById('account-number-hidden');
     if (!hidden) {
       hidden = document.createElement('input');
       hidden.type = 'hidden';
-      hidden.id = 'barcode-hidden';
-      hidden.name = 'barcode';
+      hidden.id = 'account-number-hidden';
+      hidden.name = 'account_number';
       form.appendChild(hidden);
     }
+    // Place the confirmed/edited value into the hidden field
     hidden.value = code;
 
     // Submit the form natively
