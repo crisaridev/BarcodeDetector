@@ -206,7 +206,7 @@ h1 {
 }
 
 /* Modal de confirmación */
-.modal { 
+.modal {
   position: fixed;
   inset: 0;
   display: none; /* visible via JS */
