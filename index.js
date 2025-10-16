@@ -1,11 +1,65 @@
 // Variables globales
 let videoElement, resultElement, flashButton, zoomInButton, zoomOutButton, zoomIndicator;
+let eventNameInput, eventDateInput, startScanButton;
 let isFlashOn = false;
 let currentZoom = 1.0;
 let minZoom = 1.0;
 let maxZoom = 3.0;
 let currentVideoTrack = null;
+let currentEventName = null;
+let currentEventDate = null;
+let scanningStarted = false;
+let cachedHasBarcodeDetector = false;
+let cachedIsIOS = false;
 const sonidoAlarma = new Audio('store-scanner-beep-90395.mp3'); // Asegúrate de que la ruta sea correcta
+
+// Enviar código al backend
+async function sendBarcodeToServer(code, format) {
+  try {
+    const payload = {
+      code: code,
+      format: format,
+      evento: currentEventName,
+      fecha: currentEventDate,
+      userAgent: navigator.userAgent
+    };
+
+    const res = await fetch('http://localhost:8080/api/barcodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.status === 400) {
+      // Validation errors returned as a map { field: message }
+      const errJson = await res.json().catch(() => null);
+      console.warn('Validation error from backend', errJson);
+
+      let msg = '<strong>Errores del servidor:</strong><br>';
+      if (errJson && typeof errJson === 'object') {
+        for (const [field, message] of Object.entries(errJson)) {
+          msg += `${field}: ${message}<br>`;
+        }
+      } else if (errJson) {
+        msg += JSON.stringify(errJson);
+      } else {
+        msg += 'Error de validación (formato inesperado)';
+      }
+
+      if (resultElement) resultElement.innerHTML = msg;
+      return;
+    } else if (!res.ok) {
+      console.error('Error enviando al backend', res.status);
+      if (resultElement) resultElement.textContent = `Error al enviar al servidor: ${res.status}`;
+      return;
+    } else {
+      const data = await res.json();
+      console.log('Guardado en backend:', data);
+      if (resultElement) resultElement.innerHTML = `<strong>Guardado:</strong> ${data.code} (id: ${data.id || '—'})`;
+    }
+  } catch (err) {
+    console.error('Error de conexión al backend:', err);
+  }
+}
 
 
 // Asegurar que el DOM esté completamente cargado
@@ -22,6 +76,14 @@ function initBarcodeScanner() {
   zoomInButton = document.getElementById('zoom-in');
   zoomOutButton = document.getElementById('zoom-out');
   zoomIndicator = document.getElementById('zoom-indicator');
+  // Nuevos inputs para evento y fecha
+  eventNameInput = document.getElementById('event-name');
+  eventDateInput = document.getElementById('event-date');
+  startScanButton = document.getElementById('start-scan');
+
+  if (startScanButton) {
+    startScanButton.addEventListener('click', startScan);
+  }
 
   // Paso 1: Comprobar la compatibilidad y crear una instancia del detector
   console.log('Verificando compatibilidad de BarcodeDetector...');
@@ -87,27 +149,83 @@ function initBarcodeScanner() {
   } else {
     console.error('Elemento api-info no encontrado');
   }
+  // No iniciar el scanner automáticamente. Guardar compatibilidad para cuando el usuario pulse "Iniciar Escaneo"
+  cachedHasBarcodeDetector = hasBarcodeDetector;
+  cachedIsIOS = isIOS;
 
-  // Inicializar el scanner apropiado
-  if (hasBarcodeDetector) {
-    initNativeBarcodeDetector();
-  } else {
-    console.log('BarcodeDetector no disponible, usando QuaggaJS como fallback');
-    resultElement.textContent = 'Inicializando scanner compatible...';
+  // Pedir al usuario que complete los datos del evento antes de iniciar
+  if (resultElement) {
+    resultElement.textContent = 'Complete Evento y Fecha, luego presione "Iniciar Escaneo".';
+  }
+}
 
-    // Mostrar mensaje específico para iOS
-    if (isIOS) {
-      console.log('Detectado dispositivo iOS - usando QuaggaJS optimizado');
-      resultElement.textContent = 'Configurando scanner para iOS...';
+// Inicia el escaneo después de validar inputs
+async function startScan() {
+  if (scanningStarted) return;
+
+  const eventName = eventNameInput ? eventNameInput.value.trim() : '';
+  const eventDate = eventDateInput ? eventDateInput.value : '';
+
+  if (!eventName) {
+    resultElement.textContent = 'Por favor ingrese el nombre del evento antes de iniciar.';
+    if (eventNameInput) eventNameInput.focus();
+    return;
+  }
+
+  if (!eventDate) {
+    resultElement.textContent = 'Por favor seleccione la fecha del evento antes de iniciar.';
+    if (eventDateInput) eventDateInput.focus();
+    return;
+  }
+
+  // Guardar datos del evento
+  // Antes de iniciar, registrar el evento en el backend
+  try {
+    const evRes = await fetch('http://localhost:8080/api/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evento: eventName, fecha: eventDate })
+    });
+
+    if (!evRes.ok) {
+      const err = await evRes.json().catch(() => null);
+      let msg = 'No se pudo registrar el evento.';
+      if (err && typeof err === 'object') {
+        msg += ' ' + Object.entries(err).map(([k,v]) => `${k}: ${v}`).join(' ');
+      }
+      resultElement.textContent = msg;
+      return;
     }
 
-    // Cargar QuaggaJS como fallback, o modo manual para iOS problemáticos
-    if (isIOS) {
-      // Intentar QuaggaJS pero con fallback rápido a modo manual
-      loadQuaggaJSWithFastFallback();
+    // Registrar localmente y arrancar scanner
+    currentEventName = eventName;
+    currentEventDate = eventDate;
+    scanningStarted = true;
+
+    // Actualizar UI
+    if (eventNameInput) eventNameInput.disabled = true;
+    if (eventDateInput) eventDateInput.disabled = true;
+    if (startScanButton) {
+      startScanButton.disabled = true;
+      startScanButton.textContent = 'Escaneando...';
+    }
+
+    resultElement.textContent = `Evento: ${currentEventName} • Fecha: ${currentEventDate} — Iniciando cámara...`;
+
+    // Iniciar scanner según compatibilidad guardada
+    if (cachedHasBarcodeDetector) {
+      initNativeBarcodeDetector();
     } else {
-      loadQuaggaJS();
+      resultElement.textContent = 'BarcodeDetector no disponible, cargando fallback...';
+      if (cachedIsIOS) {
+        loadQuaggaJSWithFastFallback();
+      } else {
+        loadQuaggaJS();
+      }
     }
+  } catch (err) {
+    console.error('Error registrando evento:', err);
+    resultElement.textContent = 'Error conectando al servidor para registrar evento.';
   }
 }
 
@@ -286,13 +404,17 @@ function startDetection(barcodeDetector) {
           resultElement.innerHTML = `<strong>EAN-13:</strong> ${displayValue}`;
           console.log(`Código detectado - Formato: ${format}, Valor: ${detectedBarcode.rawValue}`);
           sonidoAlarma.play();
+                  // Enviar al backend si está configurado el evento
+                  if (scanningStarted && currentEventName && currentEventDate) {
+                    sendBarcodeToServer(displayValue, 'EAN-13');
+                  }
         }
       }
     } catch (err) {
       console.error('Error durante la detección:', err);
       resultElement.textContent = 'Error durante la detección';
     }
-  }, 100);
+  }, 1000);
 }
 
 // Función de fallback rápido específica para iOS
@@ -655,6 +777,10 @@ function startQuaggaDetection() {
     resultElement.innerHTML = `<strong>EAN-13:</strong> ${displayValue}`;
     console.log(`Código detectado con QuaggaJS - Formato: ${format}, Valor: ${code}`);
     sonidoAlarma.play();
+    // Enviar al backend si está configurado el evento
+    if (scanningStarted && currentEventName && currentEventDate) {
+      sendBarcodeToServer(displayValue, 'EAN-13');
+    }
   });
 
   // Listener para errores

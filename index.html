@@ -9,6 +9,16 @@
 <body>
   <div class="container">
     <h1>Lector de Códigos de Barra</h1>
+    <!-- Inputs para evento y fecha -->
+    <form id="scan-form" action="process.php" method="post" class="scan-setup">
+      <label for="event-name">Evento:</label>
+      <input type="text" id="event-name" name="event_name" placeholder="Nombre del evento" />
+
+      <label for="event-date">Fecha del evento:</label>
+      <input type="date" id="event-date" name="event_date" />
+
+      <button id="start-scan" type="submit">Iniciar Escaneo</button>
+    </form>
     <video id="scanner-video" autoplay muted playsinline></video>
 
     <!-- Controles de cámara -->
